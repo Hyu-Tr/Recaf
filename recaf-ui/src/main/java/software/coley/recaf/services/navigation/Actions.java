@@ -103,6 +103,7 @@ import software.coley.recaf.util.visitors.MemberStubAddingVisitor;
 import software.coley.recaf.util.visitors.MethodAnnotationRemovingVisitor;
 import software.coley.recaf.util.visitors.MethodNoopingVisitor;
 import software.coley.recaf.util.visitors.MethodPredicate;
+import software.coley.recaf.util.visitors.MethodVariableRemovingVisitor;
 import software.coley.recaf.workspace.PathExportingManager;
 import software.coley.recaf.workspace.model.BasicWorkspace;
 import software.coley.recaf.workspace.model.Workspace;
@@ -2099,6 +2100,34 @@ public class Actions implements Service {
 	}
 
 	/**
+	 * Removes variable debug info in the given methods.
+	 *
+	 * @param workspace
+	 * 		Containing workspace.
+	 * @param resource
+	 * 		Containing resource.
+	 * @param bundle
+	 * 		Containing bundle.
+	 * @param declaringClass
+	 * 		Class declaring the methods.
+	 * @param methods
+	 * 		Methods to clean.
+	 */
+	public void removeMethodVariables(@Nonnull Workspace workspace,
+	                            @Nonnull WorkspaceResource resource,
+	                            @Nonnull JvmClassBundle bundle,
+	                            @Nonnull JvmClassInfo declaringClass,
+	                            @Nonnull Collection<MethodMember> methods) {
+		ClassReader reader = declaringClass.getClassReader();
+		ClassWriter writer = new ClassWriter(reader, 0);
+		MethodVariableRemovingVisitor visitor = new MethodVariableRemovingVisitor(writer, MethodPredicate.of(methods));
+		reader.accept(visitor, declaringClass.getClassReaderFlags());
+		bundle.put(declaringClass.toJvmClassBuilder()
+				.adaptFrom(writer.toByteArray())
+				.build());
+	}
+
+	/**
 	 * @param bundle
 	 * 		Containing bundle.
 	 * @param annotated
@@ -2200,7 +2229,7 @@ public class Actions implements Service {
 
 	@Nonnull
 	private <T extends AbstractSearchPane> T openSearchPane(@Nonnull String titleId, @Nonnull Ikon icon, @Nonnull Instance<T> paneProvider) {
-		// Place the tab in a region with other comments if possible.
+		// Place the tab in a region with other searches if possible.
 		DockablePath searchPath = dockingManager.getBento()
 				.search().dockable(d -> d.getNode() instanceof AbstractSearchPane);
 		DockContainerLeaf container = searchPath == null ? null : searchPath.leafContainer();
@@ -2216,6 +2245,7 @@ public class Actions implements Service {
 			stage.show();
 			stage.requestFocus();
 		}
+		dockable.setDragGroupMask(DockingManager.GROUP_ANYWHERE);
 		dockable.addCloseListener((_, _) -> paneProvider.destroy(content));
 		dockable.setContextMenuFactory(d -> {
 			ContextMenu menu = new ContextMenu();
